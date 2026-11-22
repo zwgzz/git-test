@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单词卡片 · 背单词小工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #f4f6fb;
+    color: #23283a;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+  }
+  .app { width: 100%; max-width: 520px; }
+  header { text-align: center; margin-bottom: 22px; }
+  header h1 { font-size: 24px; font-weight: 600; color: #2c3550; }
+  header p { font-size: 13px; color: #7a8299; margin-top: 6px; }
+
+  .progress-wrap { margin-bottom: 18px; }
+  .progress-text {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: #7a8299; margin-bottom: 8px;
+  }
+  .progress-bar {
+    height: 8px; background: #e3e8f2; border-radius: 8px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0%; background: #5570f5;
+    border-radius: 8px; transition: width 0.4s ease;
+  }
+
+  .card-area { perspective: 1200px; margin-bottom: 24px; }
+  .card {
+    position: relative; width: 100%; height: 320px;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(.2,.8,.3,1);
+    cursor: pointer;
+  }
+  .card.flipped { transform: rotateY(180deg); }
+  .face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    background: #fff; border: 1px solid #e6eaf3; border-radius: 18px;
+    box-shadow: 0 8px 30px rgba(35,45,80,.08);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 32px; text-align: center;
+  }
+  .face.back { transform: rotateY(180deg); }
+  .word { font-size: 46px; font-weight: 600; color: #2c3550; }
+  .phonetic { font-size: 17px; color: #8a93ab; margin-top: 10px; }
+  .hint { font-size: 12px; color: #aeb5c8; margin-top: 36px; }
+  .pos {
+    display: inline-block; font-size: 12px; color: #5570f5;
+    background: #eef1ff; padding: 3px 10px; border-radius: 20px;
+    margin-bottom: 14px;
+  }
+  .meaning { font-size: 26px; font-weight: 600; color: #2c3550; }
+  .example { font-size: 14px; color: #5b647d; margin-top: 22px; line-height: 1.7; }
+  .translation { font-size: 13px; color: #9aa2b8; margin-top: 8px; }
+
+  .controls { display: flex; gap: 12px; }
+  button {
+    flex: 1; padding: 14px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: transform .12s, opacity .2s;
+  }
+  button:active { transform: scale(.97); }
+  .btn-flip { background: #5570f5; color: #fff; width: 100%; }
+  .btn-know { background: #2fae72; color: #fff; }
+  .btn-unknow { background: #fff; color: #e08a2e; border: 1px solid #f0c88a; }
+  .hidden { display: none; }
+
+  .stats {
+    margin-top: 22px; display: flex; justify-content: center; gap: 28px;
+    font-size: 13px; color: #7a8299;
+  }
+  .stats b { color: #2c3550; font-size: 16px; margin-left: 4px; }
+  .reset {
+    display: block; margin: 18px auto 0; background: none; border: none;
+    color: #9aa2b8; font-size: 12px; cursor: pointer; flex: none; padding: 4px;
+  }
+  .reset:hover { color: #5570f5; }
+
+  .done { text-align: center; padding: 40px 20px; }
+  .done h2 { font-size: 26px; color: #2c3550; margin-bottom: 12px; }
+  .done p { color: #7a8299; font-size: 14px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>单词卡片</h1>
+    <p>看单词 · 翻面释义 · 记住它</p>
+  </header>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-text">
+      <span id="progressLabel">第 1 / 1 个</span>
+      <span id="progressPercent">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="card-area" id="cardArea">
+    <div class="card" id="card">
+      <div class="face front">
+        <div class="word" id="word">word</div>
+        <div class="phonetic" id="phonetic"></div>
+        <div class="hint">点击卡片或下方按钮查看释义</div>
+      </div>
+      <div class="face back">
+        <div class="pos" id="pos"></div>
+        <div class="meaning" id="meaning"></div>
+        <div class="example" id="example"></div>
+        <div class="translation" id="translation"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls">
+    <button class="btn-flip" id="btnFlip">显示释义</button>
+    <button class="btn-know hidden" id="btnKnow">认识</button>
+    <button class="btn-unknow hidden" id="btnUnknow">不认识</button>
+  </div>
+
+  <div class="stats">
+    <span>认识 <b id="statKnow">0</b></span>
+    <span>不认识 <b id="statUnknow">0</b></span>
+  </div>
+
+  <button class="reset" id="btnReset">重新开始</button>
+</div>
+
+<script>
+  // 词库：以后想加单词，照着这个格式往里加就行
+  const WORDS = [
+    { word: 'abandon', phonetic: '/əˈbændən/', pos: 'v.', meaning: '放弃；抛弃', example: 'He had to abandon his car in the snow.', translation: '他不得不把车遗弃在雪地里。' },
+    { word: 'benefit', phonetic: '/ˈbenɪfɪt/', pos: 'n./v.', meaning: '益处；受益', example: 'Exercise has many health benefits.', translation: '锻炼对健康有很多好处。' },
+    { word: 'campaign', phonetic: '/kæmˈpeɪn/', pos: 'n.', meaning: '运动；活动', example: 'They launched a campaign to save the park.', translation: '他们发起了一场保护公园的活动。' },
+    { word: 'decline', phonetic: '/dɪˈklaɪn/', pos: 'v./n.', meaning: '下降；婉拒', example: 'Sales declined sharply last month.', translation: '上个月销售额急剧下降。' },
+    { word: 'efficient', phonetic: '/ɪˈfɪʃnt/', pos: 'adj.', meaning: '高效的', example: 'This is a more efficient way to work.', translation: '这是一种更高效的工作方式。' },
+    { word: 'familiar', phonetic: '/fəˈmɪliə/', pos: 'adj.', meaning: '熟悉的', example: 'I am familiar with this software.', translation: '我熟悉这个软件。' },
+    { word: 'generate', phonetic: '/ˈdʒenəreɪt/', pos: 'v.', meaning: '产生；生成', example: 'The plan will generate new jobs.', translation: '这个计划将创造新的就业机会。' },
+    { word: 'hesitate', phonetic: '/ˈhezɪteɪt/', pos: 'v.', meaning: '犹豫', example: 'Do not hesitate to ask for help.', translation: '不要犹豫，尽管求助。' },
+    { word: 'identify', phonetic: '/aɪˈdentɪfaɪ/', pos: 'v.', meaning: '识别；确认', example: 'Can you identify the problem?', translation: '你能找出问题所在吗？' },
+    { word: 'justify', phonetic: '/ˈdʒʌstɪfaɪ/', pos: 'v.', meaning: '证明…正当', example: 'How do you justify this decision?', translation: '你如何证明这个决定是合理的？' },
+    { word: 'maintain', phonetic: '/meɪnˈteɪn/', pos: 'v.', meaning: '维持；保养', example: 'It is important to maintain a balance.', translation: '保持平衡很重要。' },
+    { word: 'negotiate', phonetic: '/nɪˈɡəʊʃieɪt/', pos: 'v.', meaning: '谈判；协商', example: 'They are negotiating a new contract.', translation: '他们正在协商一份新合同。' },
+    { word: 'obvious', phonetic: '/ˈɒbviəs/', pos: 'adj.', meaning: '明显的', example: 'The answer is quite obvious.', translation: '答案相当明显。' },
+    { word: 'participate', phonetic: '/pɑːˈtɪsɪpeɪt/', pos: 'v.', meaning: '参与', example: 'Everyone can participate in the discussion.', translation: '每个人都可以参与讨论。' },
+    { word: 'quality', phonetic: '/ˈkwɒləti/', pos: 'n.', meaning: '质量', example: 'We focus on quality, not quantity.', translation: '我们注重质量，而非数量。' },
+    { word: 'reduce', phonetic: '/rɪˈdjuːs/', pos: 'v.', meaning: '减少', example: 'We need to reduce costs.', translation: '我们需要降低成本。' },
+    { word: 'significant', phonetic: '/sɪɡˈnɪfɪkənt/', pos: 'adj.', meaning: '重要的；显著的', example: 'There was a significant improvement.', translation: '有显著的改善。' },
+    { word: 'temporary', phonetic: '/ˈtemprəri/', pos: 'adj.', meaning: '临时的', example: 'This is a temporary solution.', translation: '这是个临时方案。' },
+    { word: 'urgent', phonetic: '/ˈɜːdʒənt/', pos: 'adj.', meaning: '紧急的', example: 'I have an urgent matter to handle.', translation: '我有件紧急的事要处理。' },
+    { word: 'willing', phonetic: '/ˈwɪlɪŋ/', pos: 'adj.', meaning: '愿意的', example: 'She is willing to help others.', translation: '她愿意帮助别人。' }
+  ];
+
+  let queue = [];
+  let index = 0;
+  let knowCount = 0;
+  let unknowCount = 0;
+  let flipped = false;
+
+  const $ = id => document.getElementById(id);
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function load(words) {
+    queue = shuffle(words);
+    index = 0;
+    knowCount = 0;
+    unknowCount = 0;
+    if (queue.length > 0) showCurrent();
+    else showDone();
+  }
+
+  function showCurrent() {
+    const w = queue[index];
+    $('word').textContent = w.word;
+    $('phonetic').textContent = w.phonetic;
+    $('pos').textContent = w.pos;
+    $('meaning').textContent = w.meaning;
+    $('example').textContent = w.example;
+    $('translation').textContent = w.translation;
+    $('card').classList.remove('flipped');
+    flipped = false;
+    $('btnFlip').classList.remove('hidden');
+    $('btnKnow').classList.add('hidden');
+    $('btnUnknow').classList.add('hidden');
+    const pct = Math.round(index / queue.length * 100);
+    $('progressLabel').textContent = '第 ' + (index + 1) + ' / ' + queue.length + ' 个';
+    $('progressPercent').textContent = pct + '%';
+    $('progressFill').style.width = pct + '%';
+    $('statKnow').textContent = knowCount;
+    $('statUnknow').textContent = unknowCount;
+  }
+
+  function flip() {
+    flipped = !flipped;
+    $('card').classList.toggle('flipped', flipped);
+    $('btnFlip').classList.toggle('hidden', flipped);
+    $('btnKnow').classList.toggle('hidden', !flipped);
+    $('btnUnknow').classList.toggle('hidden', !flipped);
+  }
+
+  function next(known) {
+    if (known) knowCount++;
+    else unknowCount++;
+    index++;
+    if (index >= queue.length) showDone();
+    else showCurrent();
+  }
+
+  function showDone() {
+    $('cardArea').classList.add('hidden');
+    $('controls').classList.add('hidden');
+    $('progressWrap').classList.add('hidden');
+    const area = document.createElement('div');
+    area.className = 'done';
+    area.id = 'doneArea';
+    area.innerHTML = '<h2>这一轮完成</h2><p>认识 ' + knowCount + ' 个，不认识 ' + unknowCount + ' 个。<br>点击“重新开始”再练一遍。</p>';
+    document.querySelector('.app').insertBefore(area, $('btnReset'));
+  }
+
+  function reset() {
+    const old = $('doneArea');
+    if (old) old.remove();
+    $('cardArea').classList.remove('hidden');
+    $('controls').classList.remove('hidden');
+    $('progressWrap').classList.remove('hidden');
+    load(WORDS);
+  }
+
+  $('card').addEventListener('click', () => { if (!flipped) flip(); });
+  $('btnFlip').addEventListener('click', flip);
+  $('btnKnow').addEventListener('click', () => next(true));
+  $('btnUnknow').addEventListener('click', () => next(false));
+  $('btnReset').addEventListener('click', reset);
+
+  load(WORDS);
+</script>
+</body>
+</html>
